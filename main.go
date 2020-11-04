@@ -1,58 +1,29 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"strconv"
+	"echo/scrapper"
+	"os"
+	"strings"
 
-	"github.com/PuerkitoBio/goquery"
+	"github.com/labstack/echo"
 )
 
-var baseURL string = "https://kr.indeed.com/jobs?q=python&limit=50"
+const fileName string = "jobs.csv"
 
-func checkError(err error) {
-	if err != nil {
-		log.Fatalln(err)
-	}
+func handleHome(c echo.Context) error {
+	return c.File("home.html")
 }
 
-func checkCode(res *http.Response) {
-	if res.StatusCode != 200 {
-		log.Fatalln(res.StatusCode)
-	}
-
-}
-
-func getPages() int {
-	pages := 0
-	res, err := http.Get(baseURL)
-	checkError(err)
-	checkCode(res)
-
-	defer res.Body.Close()
-
-	doc, err := goquery.NewDocumentFromReader(res.Body)
-	checkError(err)
-
-	doc.Find(".pagination").Each(func(i int, s *goquery.Selection) {
-		pages = s.Find("a").Length()
-	})
-
-	return pages
-}
-
-func getpage(page int) {
-	pageURL := baseURL + "&start=" + strconv.Itoa(page*50)
-	res, err := http.Get(pageURL)
-	checkError(err)
-	checkCode(res)
-
+func handleScrape(c echo.Context) error {
+	term := strings.ToLower(scrapper.CleanString(c.FormValue("term")))
+	scrapper.Scrape(term)
+	return c.Attachment("jobs.csv", "jobs.csv")
 }
 
 func main() {
-	totalPages := getPages()
-
-	for i := 0; i < totalPages; i++ {
-		getpage(i)
-	}
+	defer os.Remove(fileName)
+	e := echo.New()
+	e.GET("/", handleHome)
+	e.POST("/scrape", handleScrape)
+	e.Logger.Fatal(e.Start(":1323"))
 }
